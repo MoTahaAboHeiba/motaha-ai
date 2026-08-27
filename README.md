@@ -1,0 +1,2 @@
+# motaha-ai
+Portfolio assistant
