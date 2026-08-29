@@ -53,14 +53,20 @@ def _extract_from_h1(file_path: Path) -> tuple[str, str] | None:
     """Read the first H1 heading and return ``(display_name, url)`` or ``None``."""
     try:
         with file_path.open(encoding="utf-8") as fh:
+            frontmatter_url = ""
             for raw_line in fh:
                 line = raw_line.strip()
+                if line.startswith("source_url:"):
+                    frontmatter_url = line.partition(":")[2].strip()
                 if not line.startswith("#"):
                     continue
                 # Found the first heading — look for a URL.
                 url_match = _URL_RE.search(line)
                 if url_match is None:
-                    logger.debug("No URL in H1 of %s", file_path.name)
+                    if frontmatter_url:
+                        name = re.sub(r"^#+\s*", "", line).strip()
+                        return (name or file_path.stem, frontmatter_url)
+                    logger.warning("Project file %s has no GitHub URL in H1 — skipping", file_path.name)
                     return None
                 url = url_match.group(0).rstrip(".,;)")
 
@@ -100,11 +106,11 @@ def _build() -> tuple[dict[str, dict[str, str]], list[dict[str, str]]]:
     # url → list of (stem, display_name) for all files sharing that URL
     url_entries: dict[str, list[tuple[str, str]]] = {}
 
-    for md_file in sorted(KB_PATH.rglob("*.md")):
+    for md_file in sorted((KB_PATH / "projects").rglob("*.md")):
         parsed = _extract_from_h1(md_file)
         if parsed is None:
             logger.warning(
-                "Skipping registry entry for %s — no URL found in H1", md_file.name
+                "Skipping project %s from registry — no GitHub URL in H1", md_file.name
             )
             continue
         display_name, url = parsed

@@ -60,12 +60,21 @@ def search(
 
     query_vector: list[float] = list(model.embed([query]))[0].tolist()
 
-    hits = client.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=query_vector,
-        limit=top_k,
-        with_payload=True,
-    )
+    if hasattr(client, "query_points"):
+        response = client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            limit=top_k,
+            with_payload=True,
+        )
+        hits = response.points
+    else:
+        hits = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vector,
+            limit=top_k,
+            with_payload=True,
+        )
 
     return [
         (hit.payload.get("text", ""), hit.score, hit.payload)
