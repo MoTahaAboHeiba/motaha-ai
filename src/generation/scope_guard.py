@@ -17,10 +17,12 @@ moderately related to the retrieved content.
 """
 
 REFUSAL = (
-    "That is not something I have covered in my knowledge base yet.\n"
-    "I am continuously building this out as I grow.\n\n "
-    "If this is important to your evaluation, reach out to me directly "
-    "and I will give you a real answer:\n"
+    "Hmm, I don't have anything documented about that yet.\n\n"
+    "I keep this knowledge base focused on what I have actually built "
+    "and worked on — so if it is not in there, I would rather be upfront "
+    "about it than guess.\n\n"
+    "If this matters for a role you are considering me for, reach out "
+    "directly and I will give you a real answer:\n"
     "Email: mohamed-aboheiba@outlook.com\n"
     "LinkedIn: linkedin.com/in/mohamed-taha-abo-heiba"
 )

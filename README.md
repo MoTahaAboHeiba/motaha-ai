@@ -93,6 +93,22 @@ python app.py
    - `GEMINI_API_KEY`
    - `QDRANT_API_KEY`
    - `QDRANT_URL`
+4. Add a **Variable** (not a secret): `GRADIO_SSR_MODE=false`
+
+   Gradio 6 turns on server-side rendering (SSR) on Spaces by default. The Node
+   sidecar often exits immediately after boot and kills the app — logs show
+   `with SSR ⚡` followed by `Stopping Node.js server...`. Disabling SSR fixes
+   this. `app.py` also sets the env var at import time; the Space variable is a
+   backup because Hugging Face may override launch kwargs.
+
+ZeroGPU is supported even though this app does not run GPU inference: the
+retrieval stack uses FastEmbed's ONNX backend. The app intentionally does not
+run model code on the GPU, but the chat event is marked with
+`@spaces.GPU(duration=120)` because ZeroGPU Spaces require at least one
+decorated function during startup. The decorator lets the event run through
+the ZeroGPU queue while retrieval remains CPU/ONNX-based. `app.py` also disables Gradio's
+`share` tunnel on Spaces, since Spaces already supplies the public URL and the
+tunnel can terminate the process after startup.
 
 The `app.py` file is detected automatically by the Gradio SDK. No Dockerfile
 or server configuration is required.

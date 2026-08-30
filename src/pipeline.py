@@ -1,89 +1,117 @@
 """
 src/pipeline.py
 
-End-to-end RAG pipeline: retrieval → scope guard → generation → sources footer.
-This is the single entry point called by app.py.
+End-to-end RAG pipeline for MoTaha AI.
 
-Sources footer strategy
------------------------
-Rather than asking the LLM to format citations (which causes it to cite
-section headings like "[Architecture]" instead of project links), the
-pipeline appends a programmatic, deduplicated sources footer AFTER the LLM
-finishes streaming.  The footer is built directly from the retrieval result
-so it is always correct, always clickable.
+Query classification runs first. Greetings, introductions, and small
+talk receive canned human responses and never touch the retrieval stack.
+
+Genuine career questions go through:
+  1. Hybrid retrieval (dense + BM25 + RRF)
+  2. Scope guard (cosine threshold 0.35)
+  3. LLM generation (Groq primary, Gemini fallback)
+  4. Sources block (appended in Python, not by the LLM)
 """
+
+from __future__ import annotations
 
 import logging
 from typing import Generator
 
-from src.retrieval.retriever import retrieve
-from src.generation.scope_guard import is_sufficient, REFUSAL
+from src.classifier import classify, get_canned_response, CAREER_CATEGORY
 from src.generation.generator import generate
+from src.generation.scope_guard import REFUSAL, is_sufficient
+from src.project_registry import lookup
+from src.retrieval.retriever import retrieve
+from src.session import ConversationTurn, SessionService
 
 logger = logging.getLogger(__name__)
 
 
-def _build_sources_footer(chunks: list[dict]) -> str:
-    """Build a deduplicated markdown sources footer from retrieved chunks.
+def _build_sources_block(
+    results: list[dict],
+    score_threshold: float = 0.005,
+) -> str:
+    """Build the 📎 Sources line from retrieval results.
 
-    Deduplicates by URL so multiple chunks from the same repo produce one link.
-    Falls back to plain project name if no URL is available.
-
-    Returns an empty string if no chunks have a project name.
+    Deduplicates by source stem. Returns empty string if no sources.
     """
     seen: set[str] = set()
-    links: list[str] = []
+    parts: list[str] = []
 
-    for chunk in chunks:
-        name = chunk.get("project_name") or chunk.get("source", "")
-        url = chunk.get("project_url", "")
-        if not name:
+    for result in results:
+        if result.get("score", 0) < score_threshold:
             continue
-        dedup_key = url if url else name
-        if dedup_key in seen:
+        stem = result.get("source", "")
+        if not stem or stem in seen:
             continue
-        seen.add(dedup_key)
-        links.append(f"[{name}]({url})" if url else name)
+        seen.add(stem)
+        entry = lookup(stem)
+        display_name = entry.get("display_name") or stem
+        url = entry.get("url", "")
+        if url:
+            parts.append(f"[{display_name}]({url})")
+        else:
+            parts.append(display_name)
 
-    if not links:
+    if not parts:
         return ""
-    return "\n\n---\n📎 **Sources:** " + " · ".join(links)
+    return "You can find it here: " + " · ".join(parts)
 
 
-def answer(query: str) -> Generator[str, None, None]:
-    """Produce a streamed answer for *query*.
+def answer(
+    query: str,
+    history: list | None = None,
+) -> Generator[str, None, None]:
+    """Yield response tokens for a user query.
 
-    Yields
-    ------
-    str
-        Incremental text tokens.  The full answer is the concatenation of all
-        yielded strings.
-
-    Flow
-    ----
-    1. Retrieve top-5 chunks via hybrid search (dense + sparse + RRF).
-    2. Check scope guard against the top Qdrant cosine score (threshold 0.35).
-       Below threshold → yield refusal, return.
-    3. Stream LLM response token by token.
-    4. Append a programmatic sources footer with clickable GitHub links.
+    Never yields sources on refusals or non-career queries.
     """
-    logger.info("Pipeline invoked — query: %.80s", query)
+    turns = SessionService.from_gradio_history(history or [])
 
-    result = retrieve(query)
-    chunks: list[dict] = result["chunks"]
-    top_dense_score: float = result["top_dense_score"]
+    # ── Step 1: classify ──────────────────────────────────────────────────────
+    category = classify(query, history=history)
+    if category != CAREER_CATEGORY:
+        logger.info("Query classified as %s — returning canned response", category)
+        yield get_canned_response(category, query)
+        return
 
+    # ── Step 2: retrieve ──────────────────────────────────────────────────────
+    augmented_query = SessionService.build_augmented_query(query, turns)
+    try:
+        retrieval_result = retrieve(augmented_query)
+        results = retrieval_result["chunks"]
+        top_dense_score = retrieval_result["top_dense_score"]
+    except Exception as exc:
+        logger.error("Retrieval failed: %s", exc, exc_info=True)
+        yield (
+            "I ran into a technical issue retrieving context. "
+            "Please try again in a moment."
+        )
+        return
+
+    # ── Step 3: scope guard ───────────────────────────────────────────────────
     if not is_sufficient(top_dense_score):
         logger.info(
-            "Scope guard fired (top_dense_score=%.3f < 0.35) — returning refusal",
+            "Scope guard fired — top_dense_score=%.4f below threshold",
             top_dense_score,
         )
         yield REFUSAL
         return
 
-    yield from generate(query, chunks)
+    # ── Step 4: generate ──────────────────────────────────────────────────────
+    try:
+        for chunk in generate(query, results, history=history):
+            yield chunk
+    except Exception as exc:
+        logger.error("Generation failed: %s", exc, exc_info=True)
+        yield (
+            "I ran into a technical issue generating a response. "
+            "Please try again in a moment."
+        )
+        return
 
-    # Append guaranteed-correct clickable source links after LLM finishes.
-    footer = _build_sources_footer(chunks)
-    if footer:
-        yield footer
+    # ── Step 5: sources (only on real answers) ────────────────────────────────
+    sources_block = _build_sources_block(results, score_threshold=0.005)
+    if sources_block:
+        yield "\n\n" + sources_block

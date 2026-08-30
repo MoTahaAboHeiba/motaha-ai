@@ -55,6 +55,11 @@ def search(
     list[tuple[str, float, dict]]
         Each element is ``(chunk_text, cosine_score, payload_metadata)``.
     """
+    if not settings.QDRANT_URL or not settings.QDRANT_API_KEY:
+        raise RuntimeError(
+            "Qdrant settings are not configured. Set QDRANT_URL and QDRANT_API_KEY in the Space secrets."
+        )
+
     model = _get_embedding_model()
     client = _get_client()
 

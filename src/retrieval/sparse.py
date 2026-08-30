@@ -47,7 +47,11 @@ def _build_index() -> tuple[list[str], list[dict[str, Any]], BM25Okapi]:
                     "chunk_index": idx,
                 }
             )
-
+    if not chunks:
+        raise RuntimeError(
+            f"BM25 index is empty. No .md files found under {KB_PATH}. "
+            "Ensure knowledge_base/ is committed and pushed to the repository."
+        )
     tokenized = [chunk.lower().split() for chunk in chunks]
     bm25 = BM25Okapi(tokenized)
 
