@@ -26,6 +26,7 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.chunking import split_text  # noqa: E402  (import after sys.path patch)
+from src.document_loader import iter_documents  # noqa: E402
 from qdrant_client import QdrantClient  # noqa: E402
 from qdrant_client.models import Distance, PointStruct, VectorParams  # noqa: E402
 
@@ -104,14 +105,13 @@ def main() -> None:
     # split_text is the pure-Python equivalent of RecursiveCharacterTextSplitter
     logger.info("Loading Gemini embedding model: %s", MODEL_NAME)
 
-    # ── Load and chunk all markdown files ────────────────────────────────────
+    # ── Load and chunk all supported documents ───────────────────────────────
     all_chunks: list[dict] = []
     files_processed = 0
 
-    for md_file in sorted(KB_PATH.rglob("*.md")):
-        content = md_file.read_text(encoding="utf-8")
-        file_path = str(md_file.relative_to(KB_PATH))
-        source = md_file.stem
+    for document_path, content in iter_documents(KB_PATH):
+        file_path = str(document_path.relative_to(KB_PATH))
+        source = document_path.stem
 
         file_chunks = split_text(content, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, separators=SEPARATORS)
         for idx, chunk_text in enumerate(file_chunks):
@@ -125,7 +125,7 @@ def main() -> None:
                 }
             )
         files_processed += 1
-        logger.info("  %-40s → %d chunks", md_file.name, len(file_chunks))
+        logger.info("  %-40s → %d chunks", document_path.name, len(file_chunks))
 
     logger.info("Total chunks to embed: %d", len(all_chunks))
 

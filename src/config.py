@@ -7,13 +7,21 @@ clear ValidationError before any query can be served.
 """
 
 from pathlib import Path
+import logging
 
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
 
 class Settings(BaseSettings):
     GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = DEFAULT_GROQ_MODEL
     GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = DEFAULT_GEMINI_MODEL
     QDRANT_API_KEY: str | None = None
     QDRANT_URL: str | None = None
 
@@ -62,6 +70,21 @@ class Settings(BaseSettings):
 
 # Singleton — imported by every module that needs config or the KB path.
 settings = Settings()
+
+if settings.GROQ_MODEL == "llama-3.3-70b-versatile":
+    logger.warning(
+        "Replacing unavailable legacy GROQ_MODEL '%s' with '%s'.",
+        settings.GROQ_MODEL,
+        DEFAULT_GROQ_MODEL,
+    )
+    settings.GROQ_MODEL = DEFAULT_GROQ_MODEL
+if settings.GEMINI_MODEL == "gemini-1.5-flash":
+    logger.warning(
+        "Replacing unavailable legacy GEMINI_MODEL '%s' with '%s'.",
+        settings.GEMINI_MODEL,
+        DEFAULT_GEMINI_MODEL,
+    )
+    settings.GEMINI_MODEL = DEFAULT_GEMINI_MODEL
 
 # Canonical path to the knowledge base directory.
 # Path(__file__) is src/config.py → .parent is src/ → .parent is project root.

@@ -27,6 +27,7 @@ deduplicate.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -66,7 +67,6 @@ def _extract_from_h1(file_path: Path) -> tuple[str, str] | None:
                     if frontmatter_url:
                         name = re.sub(r"^#+\s*", "", line).strip()
                         return (name or file_path.stem, frontmatter_url)
-                    logger.warning("Project file %s has no GitHub URL in H1 — skipping", file_path.name)
                     return None
                 url = url_match.group(0).rstrip(".,;)")
 
@@ -82,6 +82,26 @@ def _extract_from_h1(file_path: Path) -> tuple[str, str] | None:
     except OSError as exc:
         logger.warning("Cannot read %s: %s", file_path, exc)
     return None
+
+
+_PORTFOLIO_BASE_URL = "https://my-portfolio.mohamed-aboheiba.workers.dev/"
+_DOCUMENT_METADATA: dict[str, dict[str, str]] = {}
+_DOCUMENT_REGISTRY_PATH = KB_PATH / "metadata" / "document_registry.json"
+try:
+    raw_metadata = json.loads(_DOCUMENT_REGISTRY_PATH.read_text(encoding="utf-8"))
+    for metadata in raw_metadata.values():
+        file_path = metadata.get("file_path", "")
+        stem = Path(file_path).stem
+        if stem:
+            section = metadata.get("portfolio_section", "")
+            _DOCUMENT_METADATA[stem] = {
+                "display_name": metadata.get("title", ""),
+                "url": metadata.get("source_url", ""),
+                "portfolio_section": section,
+                "portfolio_url": f"{_PORTFOLIO_BASE_URL}#{section.lower()}" if section else _PORTFOLIO_BASE_URL,
+            }
+except (OSError, json.JSONDecodeError) as exc:
+    logger.warning("Cannot read document registry %s: %s", _DOCUMENT_REGISTRY_PATH, exc)
 
 
 def _build() -> tuple[dict[str, dict[str, str]], list[dict[str, str]]]:
@@ -109,10 +129,15 @@ def _build() -> tuple[dict[str, dict[str, str]], list[dict[str, str]]]:
     for md_file in sorted((KB_PATH / "projects").rglob("*.md")):
         parsed = _extract_from_h1(md_file)
         if parsed is None:
-            logger.warning(
-                "Skipping project %s from registry — no GitHub URL in H1", md_file.name
-            )
-            continue
+            metadata = _DOCUMENT_METADATA.get(md_file.stem, {})
+            metadata_url = metadata.get("url", "")
+            if not metadata_url:
+                logger.warning(
+                    "Skipping project %s from registry — no GitHub URL in H1 or document registry",
+                    md_file.name,
+                )
+                continue
+            parsed = (metadata.get("display_name") or md_file.stem, metadata_url)
         display_name, url = parsed
         registry[md_file.stem] = {"display_name": display_name, "url": url}
         url_entries.setdefault(url, []).append((md_file.stem, display_name))
@@ -143,7 +168,14 @@ def lookup(source: str) -> dict[str, str]:
     Falls back to ``{display_name: source, url: ""}`` so callers never crash
     on an unregistered file.
     """
-    return _REGISTRY.get(source, {"display_name": source, "url": ""})
+    project = _REGISTRY.get(source, {"display_name": source, "url": ""})
+    metadata = _DOCUMENT_METADATA.get(source, {})
+    return {
+        "display_name": project.get("display_name") or metadata.get("display_name") or source,
+        "url": project.get("url") or metadata.get("url", ""),
+        "portfolio_section": metadata.get("portfolio_section", ""),
+        "portfolio_url": metadata.get("portfolio_url", _PORTFOLIO_BASE_URL),
+    }
 
 
 def get_all_projects() -> list[dict[str, str]]:

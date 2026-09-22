@@ -336,6 +336,7 @@ as a reliable CI gate.
 
 ## Security notes
 
+- Never commit `.env`, API tokens, private keys, or credential backups.
 - Rotate any provider credential that has ever been exposed outside the secret
   manager.
 - Replace the permissive `allow_origins=["*"]` CORS setting in `main.py` with

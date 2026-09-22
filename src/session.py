@@ -64,8 +64,12 @@ class SessionService:
 
     @staticmethod
     def strip_sources(answer: str) -> str:
-        """Remove the sources block appended by the pipeline."""
+        """Remove structured or legacy sources appended to an answer."""
         marker = "\n\n📎 Sources:"
+        idx = answer.find(marker)
+        if idx != -1:
+            return answer[:idx]
+        marker = "[SOURCES]"
         idx = answer.find(marker)
         if idx != -1:
             return answer[:idx]

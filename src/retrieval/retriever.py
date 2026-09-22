@@ -24,7 +24,7 @@ def retrieve(
     query: str,
     dense_top_k: int = 10,
     sparse_top_k: int = 10,
-    final_top_k: int = 5,
+    final_top_k: int = 3,
 ) -> dict[str, Any]:
     """Run hybrid retrieval and return fused results plus the top dense score.
 
@@ -59,18 +59,28 @@ def retrieve(
     """
     dense_results: list[tuple[str, float, dict]] = []
     sparse_results: list[tuple[str, float, dict]] = []
+    dense_available = True
+    sparse_available = True
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         future_dense = executor.submit(dense.search, query, dense_top_k)
         future_sparse = executor.submit(sparse.query, query, sparse_top_k)
 
         for future in as_completed([future_dense, future_sparse]):
-            if future is future_dense:
-                dense_results = future.result()
-                logger.debug("Dense retrieval returned %d results", len(dense_results))
-            else:
-                sparse_results = future.result()
-                logger.debug("Sparse retrieval returned %d results", len(sparse_results))
+            try:
+                if future is future_dense:
+                    dense_results = future.result()
+                    logger.debug("Dense retrieval returned %d results", len(dense_results))
+                else:
+                    sparse_results = future.result()
+                    logger.debug("Sparse retrieval returned %d results", len(sparse_results))
+            except Exception as exc:
+                if future is future_dense:
+                    dense_available = False
+                    logger.warning("Dense retrieval unavailable; using sparse results: %s", exc)
+                else:
+                    sparse_available = False
+                    logger.warning("Sparse retrieval unavailable; using dense results: %s", exc)
 
     # Extract the top cosine score BEFORE fusion — this is the value the
     # scope guard checks against the 0.35 threshold.
@@ -101,4 +111,6 @@ def retrieve(
             for text, score, meta in top
         ],
         "top_dense_score": top_dense_score,
+        "dense_available": dense_available,
+        "sparse_available": sparse_available,
     }

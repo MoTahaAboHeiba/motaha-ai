@@ -3,8 +3,8 @@ src/generation/generator.py
 
 LLM generation with Groq as the primary provider and Gemini as fallback.
 
-Primary  : Groq — model openai/gpt-oss-120b, streaming.
-Fallback : Gemini — model gemini-1.5-flash, non-streaming (yields single chunk).
+Primary  : Groq — configurable model, streaming.
+Fallback : Gemini — configurable model, non-streaming (yields single chunk).
 
 The function is a generator so the caller (pipeline.py / app.py) can stream
 tokens directly to the Gradio ChatInterface without buffering.
@@ -22,8 +22,6 @@ from src.session import ConversationTurn, SessionService
 
 logger = logging.getLogger(__name__)
 
-GROQ_MODEL = "openai/gpt-oss-120b"
-GEMINI_MODEL = "gemini-1.5-flash"
 
 
 def _format_history_for_llm(history: list | None) -> str:
@@ -94,11 +92,11 @@ def generate(
     try:
         client = groq.Groq(api_key=settings.GROQ_API_KEY)
         stream = client.chat.completions.create(
-            model=GROQ_MODEL,
+            model=settings.GROQ_MODEL,
             messages=messages,
             stream=True,
         )
-        logger.info("Provider: Groq (%s)", GROQ_MODEL)
+        logger.info("Provider: Groq (%s)", settings.GROQ_MODEL)
         for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
@@ -117,13 +115,13 @@ def generate(
         full_prompt = f"{system_content}\n\nUser: {query}"
     try:
         response = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=settings.GEMINI_MODEL,
             contents=full_prompt,
         )
         yield response.text
     except AttributeError:
         response = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=settings.GEMINI_MODEL,
             contents=full_prompt,
         )
         logger.warning("Gemini response.text unavailable; falling back to content.parts[0].text")

@@ -13,6 +13,7 @@ import logging
 from typing import Any
 
 from src.chunking import split_text
+from src.document_loader import iter_documents
 from rank_bm25 import BM25Okapi
 
 from src.config import KB_PATH
@@ -26,16 +27,17 @@ SEPARATORS = ["\n\n", "\n", ". ", " "]
 
 
 def _build_index() -> tuple[list[str], list[dict[str, Any]], BM25Okapi]:
-    """Load every .md file from knowledge_base/, chunk it, and build the index."""
+    """Load supported files from knowledge_base/, chunk them, and build the index."""
     # split_text is the pure-Python equivalent of RecursiveCharacterTextSplitter
 
     chunks: list[str] = []
     metadata_list: list[dict[str, Any]] = []
 
-    for md_file in sorted(KB_PATH.rglob("*.md")):
-        content = md_file.read_text(encoding="utf-8")
-        file_path = str(md_file.relative_to(KB_PATH))
-        source = md_file.stem
+    files_processed = 0
+    for document_path, content in iter_documents(KB_PATH):
+        file_path = str(document_path.relative_to(KB_PATH))
+        source = document_path.stem
+        files_processed += 1
 
         file_chunks = split_text(content, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, separators=SEPARATORS)
         for idx, chunk_text in enumerate(file_chunks):
@@ -49,8 +51,8 @@ def _build_index() -> tuple[list[str], list[dict[str, Any]], BM25Okapi]:
             )
     if not chunks:
         raise RuntimeError(
-            f"BM25 index is empty. No .md files found under {KB_PATH}. "
-            "Ensure knowledge_base/ is committed and pushed to the repository."
+            f"BM25 index is empty. No supported documents found under {KB_PATH}. "
+            "Ensure knowledge_base/ contains .md or .pdf files."
         )
     tokenized = [chunk.lower().split() for chunk in chunks]
     bm25 = BM25Okapi(tokenized)
@@ -58,7 +60,7 @@ def _build_index() -> tuple[list[str], list[dict[str, Any]], BM25Okapi]:
     logger.info(
         "BM25 index built: %d chunks from %d files in %s",
         len(chunks),
-        len(list(KB_PATH.rglob("*.md"))),
+        files_processed,
         KB_PATH,
     )
     return chunks, metadata_list, bm25

@@ -8,6 +8,7 @@ then reused for the lifetime of the process.
 """
 
 import logging
+import time
 from typing import Any
 
 from google import genai
@@ -79,8 +80,14 @@ def search(
         )
 
     client = _get_client()
+    embedding_started = time.perf_counter()
     query_vector = embed_query(query)
+    logger.info(
+        "Dense timing: embedding=%.0f ms",
+        (time.perf_counter() - embedding_started) * 1000,
+    )
 
+    search_started = time.perf_counter()
     if hasattr(client, "query_points"):
         response = client.query_points(
             collection_name=COLLECTION_NAME,
@@ -96,6 +103,11 @@ def search(
             limit=top_k,
             with_payload=True,
         )
+    logger.info(
+        "Dense timing: qdrant_search=%.0f ms, hits=%d",
+        (time.perf_counter() - search_started) * 1000,
+        len(hits),
+    )
 
     return [
         (hit.payload.get("text", ""), hit.score, hit.payload)
