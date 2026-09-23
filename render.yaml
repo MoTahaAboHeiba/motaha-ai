@@ -1,16 +1,16 @@
-services:
-  - type: web
-    name: motaha-ai
-    runtime: python
-    rootDir: .
-    buildCommand: pip install -r requirements.txt && python -c "from pathlib import Path; root = Path('knowledge_base'); docs = [path for path in root.rglob('*') if path.is_file() and path.suffix.lower() in {'.md', '.pdf'}]; registry = root / 'metadata' / 'document_registry.json'; assert docs, f'No Markdown or PDF documents found under {root.resolve()}'; assert registry.is_file(), f'Missing document registry: {registry.resolve()}'; print(f'Found {len(docs)} knowledge-base documents and the document registry.')"
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: QDRANT_API_KEY
-        sync: false
-      - key: QDRANT_URL
-        sync: false
+  services:
+    - type: web
+      name: motaha-ai
+      runtime: python
+      rootDir: .
+      buildCommand: pip install -r requirements.txt && python -c "from pathlib import Path; root = Path('knowledge_base'); docs = [path for path in root.rglob('*') if path.is_file() and path.suffix.lower() in {'.md', '.pdf'}]; registry = root / 'metadata' / 'document_registry.json'; assert docs, f'No Markdown or PDF documents found under {root.resolve()}'; assert registry.is_file(), f'Missing document registry: {registry.resolve()}'; print(f'Found {len(docs)} knowledge-base documents and the document registry.')"
+      startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+      envVars:
+        - key: GROQ_API_KEY
+          sync: false
+        - key: GEMINI_API_KEY
+          sync: false
+        - key: QDRANT_API_KEY
+          sync: false
+        - key: QDRANT_URL
+          sync: false

@@ -279,6 +279,8 @@ Language is inferred from the user's message; there is no language selector.
 The repository includes `render.yaml` and a `Procfile`. A Render web service
 can use:
 
+Live deployment: https://motaha-ai.onrender.com
+
 ```text
 Build command: pip install -r requirements.txt
 Start command: uvicorn main:app --host 0.0.0.0 --port $PORT
