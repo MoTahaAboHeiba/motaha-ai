@@ -344,17 +344,6 @@
 </head>
 <body>
   <div id="app">
-    <div id="portfolio-header">
-      <div class="brand">
-        <span class="brand-mark">// MOTAHA AI</span>
-        <span class="brand-divider">|</span>
-        <span class="brand-subtitle">Ask me anything about my engineering work</span>
-      </div>
-      <div class="status-pill">
-        <span class="status-dot"></span>
-        <span class="status-text">taha@portfolio ~</span>
-      </div>
-    </div>
 
     <div class="example-row">
       <button class="example-pill">Who are you?</button>
@@ -372,11 +361,8 @@
   </div>
 
   <script>
-    const API_BASE = "";
-    // Change to your Render URL before deploying, e.g. "https://motaha-ai.onrender.com"
-
-    // Map knowledge_base slugs to GitHub URLs.
-    // Fill in any empty strings with the actual repo URL.
+    const API_BASE = "https://motaha-ai.onrender.com";
+    
     const SOURCE_URLS = {
       "ecommerce-lakehouse":      "https://github.com/MoTahaAboHeiba/E-Commerce-Lakehouse-Using-Databricks",
       "retail-lakehouse-main":    "https://github.com/MoTahaAboHeiba/retail-lakehouse-pipeline",
@@ -532,7 +518,7 @@
         }
         if (details.portfolioUrl) {
           const section = details.portfolioSection ? `: ${escapeHtml(details.portfolioSection)}` : "";
-          links.push(`<a href="${escapeHtml(details.portfolioUrl)}" target="_blank" rel="noopener noreferrer" class="source-chip source-chip-link">Portfolio${section} <span class="chip-icon">↗</span></a>`);
+          links.push(`<a href="${escapeHtml(details.portfolioUrl)}" target="_parent" class="source-chip source-chip-link">Portfolio${section} <span class="chip-icon">↗</span></a>`);
         }
         return links.join("") || `<span class="source-chip">${escapeHtml(label)}</span>`;
       }).join("");
