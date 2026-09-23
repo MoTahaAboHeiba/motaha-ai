@@ -24,7 +24,14 @@ import logging
 import time
 from typing import Generator
 
-from src.classifier import classify, get_canned_response, CAREER_CATEGORY
+from src.classifier import (
+    classify,
+    get_canned_response,
+    get_reliable_answer,
+    get_canonical_sources,
+    get_canonical_intent,
+    CAREER_CATEGORY,
+)
 from src.generation.generator import generate
 from src.generation.scope_guard import REFUSAL, is_sufficient
 from src.project_registry import lookup
@@ -67,6 +74,19 @@ def answer(
     if category != CAREER_CATEGORY:
         logger.info("Query classified as %s — returning canned response", category)
         yield get_canned_response(category, query)
+        return
+
+    reliable_answer = get_reliable_answer(query)
+    canonical_intent = get_canonical_intent(query)
+    if reliable_answer:
+        logger.info(
+            "answer_source=canonical canonical_intent=%s",
+            canonical_intent,
+        )
+        yield reliable_answer
+        sources = get_canonical_sources(query)
+        if sources:
+            yield f"[SOURCES]{json.dumps(sources)}"
         return
 
     # ── Step 2: retrieve ──────────────────────────────────────────────────────
